@@ -332,6 +332,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         panel_copyright.setAlignmentX(Component.LEFT_ALIGNMENT)
 
         label_copyright1 = JLabel("<html><a href='#/'>WordPress Scanner {}</a></html>".format(BURP_WP_VERSION))
+        label_copyright1.putClientProperty("html.disable", None)
         label_copyright1.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright1.setCursor(Cursor(Cursor.HAND_CURSOR))
         label_copyright1.addMouseListener(CopyrightMouseAdapter("https://github.com/kacperszurek/burp_wp"))
@@ -339,6 +340,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         panel_copyright.add(label_copyright1)
 
         label_copyright2 = JLabel("<html>&nbsp;by <a href='#'>Kacper Szurek</a>.</html>")
+        label_copyright2.putClientProperty("html.disable", None)
         label_copyright2.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright2.setCursor(Cursor(Cursor.HAND_CURSOR))
         label_copyright2.addMouseListener(CopyrightMouseAdapter("https://security.szurek.pl/"))
@@ -347,6 +349,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
         label_copyright3 = JLabel(
             "<html>&nbsp;Vulnerabilities database by <a href='#/'>WPScan</a></html>")
+        label_copyright3.putClientProperty("html.disable", None)
         label_copyright3.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright3.setCursor(Cursor(Cursor.HAND_CURSOR))
         label_copyright3.addMouseListener(CopyrightMouseAdapter("https://wpscan.org/"))

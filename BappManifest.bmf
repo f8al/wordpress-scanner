@@ -7,7 +7,7 @@ SerialVersion: 6
 MinPlatformVersion: 0
 ProOnly: False
 Author: @f8al
-ShortDescription: Find known vulnerabilities in WordPress plugins and themes using WPScan database.
+ShortDescription: Find known vulnerabilities in WordPress plugins and themes using the WPScan Vulnerability Database API (free API token required).
 EntryPoint: burp_wp.py
 BuildCommand: 
 SupportedProducts: Pro, Community

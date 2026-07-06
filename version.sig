@@ -1,2 +1,2 @@
-{"version_number": "0.7", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "499cbf9964eeec5a83ef005f374d0a5ac6acb120a1129ce9fc230b9f1551a5c0", "changelog": "0.7: Fix HTTP requests on current Burp (Montoya-backed legacy API) — switch makeHttpRequest calls to the IHttpService overload so database updates and vuln lookups work again"}
-MD4CHQDGi3734x5ocz7B4uyX8+DvcdsQO7Cb0lZExRElAh0Alua9kXjvc7x7BedUMhud2EbdTT7ELt8hguGiaw==
+{"version_number": "0.8", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "36543a14183be4a8f24f68f190b84d3fc3bf57164e91b91368ab67d8e131fdfb", "changelog": "0.8: Restore Intruder plugin/theme enumeration wordlists (WordPress.org API) — separate from the vuln cache so scans still perform per-slug lookups; regenerated data/plugins.json + data/themes.json"}
+MD0CHQCTtpSR5LZpFSUU75Ec4EMiaK5sxspWxHDtpJH3Ahx3G5xDmAgjz3Kv+tOcQa1HDCDh/qBfyUPTPH3F

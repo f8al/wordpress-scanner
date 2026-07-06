@@ -28,7 +28,6 @@ from array import array
 from base64 import b64encode, b64decode
 from collections import defaultdict
 from distutils.version import LooseVersion
-from itertools import chain
 from threading import Lock
 
 from burp import IBurpExtender
@@ -76,7 +75,7 @@ from javax.swing.event import DocumentListener
 from javax.swing.table import AbstractTableModel
 from org.python.core.util import StringUtil
 
-BURP_WP_VERSION = '0.7'
+BURP_WP_VERSION = '0.8'
 INTERESTING_CODES = [200, 401, 403, 301]
 DB_NAME = "burp_wp_database.db"
 
@@ -152,10 +151,21 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         self.api_errors = 0
 
         self.database = {'plugins': collections.OrderedDict(), 'themes': collections.OrderedDict(), 'admin_ajax': {}}
+        # Enumeration wordlists for the Intruder payload generators (slug lists,
+        # popularity-ordered). Kept SEPARATE from self.database on purpose:
+        # self.database['plugins'/'themes'] is the on-demand vuln-lookup cache, and
+        # api_request() only queries the WPScan API for a slug that is NOT already a
+        # key there. Merging the wordlist in would make every plugin look "known"
+        # and silently suppress all vulnerability lookups.
+        self.wordlists = {'plugins': [], 'themes': []}
         self.list_plugins_on_website = defaultdict(list)
 
     def update_infos(self):
-        if self.config.get('sha_plugins', '') != '':
+        # One-time migration for configs predating 0.3 (when the WPScan API token
+        # became required). Gate on the stored version, NOT on sha_plugins: that
+        # config key is now also set by the Intruder wordlist download, so keying
+        # off it here would wrongly reset the API key on every restart.
+        if LooseVersion(str(self.config.get('version', '0'))) < LooseVersion('0.3'):
             self.config.pop('sha_plugins', None)
             self.config.pop('sha_themes', None)
             self.button_clear_cache("")
@@ -450,9 +460,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         if os.path.exists(database_path):
             try:
                 with open(database_path, "rb") as fp:
-                    self.database = json.load(fp)
-                themes_length = len(self.database['themes'])
-                plugins_length = len(self.database['plugins'])
+                    self._load_database_dict(json.load(fp))
+                themes_length = len(self.wordlists['themes'])
+                plugins_length = len(self.wordlists['plugins'])
                 admin_ajax_length = len(self.database.get('admin_ajax', {}))
                 update_text = "Themes: {}, Plugins: {}, Admin ajax: {}, Last update: {}".format(themes_length, plugins_length, admin_ajax_length,
                                                                                 last_update)
@@ -471,6 +481,8 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         self.print_debug("[+] button_force_update_on_click")
 
         self.update_config('sha_admin_ajax', '')
+        self.update_config('sha_plugins', '')
+        self.update_config('sha_themes', '')
         self.update_config('update_burp_wp', '0')
 
         self.button_update_on_click(None)
@@ -532,7 +544,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
                     with open(file_path, "rb") as fp:
                         temp_load = json.load(fp)
                     if "themes" in temp_load and "plugins" in temp_load:
-                        self.database = temp_load
+                        self._load_database_dict(temp_load)
                         self.textfield_database_path.setText(file_path)
                         self.update_config('database_path', file_path)
                         self.update_config('last_update', int(time.time()))
@@ -560,8 +572,8 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             self.print_debug("[+] Config updated for key {}".format(key))
             if key == "last_update":
                 last_update = time.strftime("%d-%m-%Y %H:%M", time.localtime(self.config.get('last_update', 0)))
-                themes_length = len(self.database['themes'])
-                plugins_length = len(self.database['plugins'])
+                themes_length = len(self.wordlists['themes'])
+                plugins_length = len(self.wordlists['plugins'])
                 admin_ajax_length = len(self.database.get('admin_ajax', {}))
                 update_text = "Themes: {}, Plugins: {}, Admin ajax: {}, Last update: {}".format(themes_length, plugins_length, admin_ajax_length,
                                                                                 last_update)
@@ -654,12 +666,27 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         finally:
             self.lock_update_burp_wp.release()
 
+    def _serialize_database(self):
+        # Persist the enumeration wordlists alongside the vuln cache so Intruder
+        # works across restarts without waiting for another download.
+        data = dict(self.database)
+        data['wordlists'] = self.wordlists
+        return data
+
+    def _load_database_dict(self, loaded):
+        # Split the on-disk blob back into the vuln cache (self.database) and the
+        # Intruder wordlists. Old database files predate 'wordlists' -> empty lists.
+        wordlists = loaded.pop('wordlists', None) or {}
+        self.wordlists = {'plugins': wordlists.get('plugins', []) or [],
+                          'themes': wordlists.get('themes', []) or []}
+        self.database = loaded
+
     def update_database_file(self):
         self.lock_update_database.acquire()
 
-        try:           
+        try:
             with open(self.config.get('database_path'), "wb") as fp:
-                json.dump(self.database, fp)
+                json.dump(self._serialize_database(), fp)
             self.update_config('last_update', int(time.time()))
         except:
             self.print_debug("[+] update_database_file update error")
@@ -678,7 +705,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             if self._update_database():
                 try:
                     with open(self.config.get('database_path'), "wb") as fp:
-                        json.dump(self.database, fp)
+                        json.dump(self._serialize_database(), fp)
                     self.update_config('last_update', int(time.time()))
                 except:
                     self.print_debug("[-] update_database cannot save database: {}".format(traceback.format_exc()))
@@ -722,14 +749,15 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             return None
 
     def _update_database(self):
-        dict_files = {'admin_ajax': 'https://raw.githubusercontent.com/f8al/wordpress-scanner/master/data/admin_ajax.json'}
+        repo_raw = 'https://raw.githubusercontent.com/f8al/wordpress-scanner/master/data'
+        dict_files = {'admin_ajax': '{}/admin_ajax.json'.format(repo_raw),
+                      'plugins': '{}/plugins.json'.format(repo_raw),
+                      'themes': '{}/themes.json'.format(repo_raw)}
 
         progress_divider = len(dict_files) * 2
         progress_adder = 0
         for _type, url in dict_files.iteritems():
             try:
-                temp_database = collections.OrderedDict()
-
                 sha_url = "{}.sha512".format(url)
                 sha_original = self._make_http_request_wrapper(sha_url)
                 if not sha_original:
@@ -764,11 +792,14 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
                         "[-] _update_database cannot decode json for {}: {}".format(_type, traceback.format_exc()))
                     return False
 
-                if _type == 'admin_ajax':
-                    temp_database = loaded_json
-
                 progress_adder += int(100 / progress_divider)
-                self.database[_type] = temp_database
+                if _type in ('plugins', 'themes'):
+                    # Enumeration wordlist (list of slugs) for the Intruder payload
+                    # generators. Kept out of self.database[_type], which is the
+                    # on-demand vuln-lookup cache (see api_request / self.wordlists).
+                    self.wordlists[_type] = loaded_json
+                else:
+                    self.database[_type] = loaded_json
                 self.update_config('sha_{}'.format(_type), sha_original)
             except:
                 self.print_debug("_update_database parser error for {}: {}".format(_type, traceback.format_exc()))
@@ -1489,22 +1520,20 @@ class IntruderPayloadGenerator(IIntruderPayloadGenerator):
         self.payload_index = 0
         self.extender = extender
         self.type = _type
-        self.iterator = self.extender.database[self.type].iteritems()
-        self.iterator_length = len(self.extender.database[self.type])
+        # Snapshot the enumeration wordlist so a mid-scan database update can't
+        # shift indices underneath us.
+        self.slugs = list(self.extender.wordlists.get(self.type, []))
+        self.iterator_length = len(self.slugs)
         self.extender.print_debug("[+] Start intruder for {}, has {} payloads".format(self.type, self.iterator_length))
 
     def hasMorePayloads(self):
         return self.payload_index < self.iterator_length
 
     def getNextPayload(self, base_value):
-        if self.payload_index <= self.iterator_length:
-            try:
-                k, v = self.iterator.next()
-                self.payload_index += 1
-                return "{}/{}/{}/".format(self.extender.config.get('wp_content', 'wp-content'), self.type, k)
-
-            except StopIteration:
-                pass
+        if self.payload_index < self.iterator_length:
+            slug = self.slugs[self.payload_index]
+            self.payload_index += 1
+            return "{}/{}/{}/".format(self.extender.config.get('wp_content', 'wp-content'), self.type, slug)
 
     def reset(self):
         self.payload_index = 0
@@ -1514,27 +1543,21 @@ class IntruderPayloadGeneratorMixed(IIntruderPayloadGenerator):
     def __init__(self, extender):
         self.payload_index = 0
         self.extender = extender
-        self.iterator = chain(self.extender.database["themes"].iteritems(),
-                              self.extender.database["plugins"].iteritems())
-        self.iterator_themes_length = len(self.extender.database["themes"])
-        self.iterator_length = (self.iterator_themes_length + len(self.extender.database["plugins"]))
+        theme_slugs = list(self.extender.wordlists.get("themes", []))
+        plugin_slugs = list(self.extender.wordlists.get("plugins", []))
+        # Themes first, then plugins — the index tells the two apart below.
+        self.slugs = [("themes", s) for s in theme_slugs] + [("plugins", s) for s in plugin_slugs]
+        self.iterator_length = len(self.slugs)
         self.extender.print_debug("[+] Start mixed intruder, has {} payloads".format(self.iterator_length))
 
     def hasMorePayloads(self):
-        return self.payload_index <= self.iterator_length
+        return self.payload_index < self.iterator_length
 
     def getNextPayload(self, base_value):
         if self.payload_index < self.iterator_length:
-            try:
-                k, v = self.iterator.next()
-                self.payload_index += 1
-
-                if self.payload_index <= self.iterator_themes_length:
-                    return "{}/{}/{}/".format(self.extender.config.get('wp_content', 'wp-content'), "themes", k)
-                else:
-                    return "{}/{}/{}/".format(self.extender.config.get('wp_content', 'wp-content'), "plugins", k)
-            except StopIteration:
-                pass
+            _type, slug = self.slugs[self.payload_index]
+            self.payload_index += 1
+            return "{}/{}/{}/".format(self.extender.config.get('wp_content', 'wp-content'), _type, slug)
 
     def reset(self):
         self.payload_index = 0

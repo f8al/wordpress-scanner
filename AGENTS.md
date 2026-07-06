@@ -49,6 +49,31 @@ diagnosed it. **When touching any Burp API call, prefer the non-deprecated
 overload and guard for `null` results** — assume other deprecated legacy calls may
 be similarly broken and need the same treatment.
 
+## Intruder wordlists vs. the vuln cache (don't merge them)
+
+`self.database['plugins'|'themes']` is the **on-demand vuln-lookup cache**:
+`api_request()` writes results keyed by slug, and `is_vulnerable_plugin_version`
+only calls the WPScan API for a slug that is **not already a key**. So preloading a
+big slug list into `self.database` would make every plugin look "known" and
+**silently suppress all vuln lookups**. Learned the hard way.
+
+The Intruder payload generators enumerate installed plugins/themes by spraying
+`/wp-content/{plugins,themes}/<slug>/`. Their slug source is a **separate**
+structure, `self.wordlists = {'plugins': [...], 'themes': [...]}` (plain slug
+lists), persisted inside the DB file under a `wordlists` key (see
+`_serialize_database` / `_load_database_dict`). Keep these two apart.
+
+The wordlists come from `data/plugins.json` + `data/themes.json` (JSON arrays of
+slugs), downloaded like `admin_ajax.json` with sha512 verification. Regenerate them
+with `tools/generate_wordlists.py` (pulls the WordPress.org plugin/theme API,
+popularity-ordered). The old source, `data.wpscan.org/{plugins,themes}.json`, is
+dead (403) — that removal in the v3 modernization is what left Intruder with 0
+payloads. After regenerating, rebuild the `.sha512` siblings and re-sign.
+
+Gotcha fixed alongside: `update_infos()`'s pre-0.3 migration used to trigger on
+`sha_plugins != ''`. Since the wordlist download now sets `sha_plugins`, that would
+wrongly reset the API key on every restart — it's now gated on the stored `version`.
+
 ## HTTP / update mechanics
 
 - Auto-update + DB come from `raw.githubusercontent.com/f8al/wordpress-scanner/master/...`

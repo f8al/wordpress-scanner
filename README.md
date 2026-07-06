@@ -4,7 +4,17 @@
 
 Find known vulnerabilities in WordPress plugins and themes using Burp Suite proxy.
 
-**TL;DR: [WPScan](https://wpscan.org/) like plugin for [Burp](https://portswigger.net/) by [Kacper Szurek](https://security.szurek.pl/)**.
+**TL;DR: a [WPScan](https://wpscan.org/)-like plugin for [Burp](https://portswigger.net/).**
+
+Originally created by [Kacper Szurek](https://security.szurek.pl/). This fork is
+maintained by [SecurityShrimp](https://securityshrimp.com) and modernized for the
+**WPScan Vulnerability Database API v3** and current Burp Suite releases (the legacy
+Extender API now runs as a shim over the Montoya API).
+
+> **You need a free WPScan API token.** Since the v3 migration, vulnerability data is
+> fetched per plugin/theme from the API. Grab a token at
+> [wpscan.com/api](https://wpscan.com/api/) and paste it into the **API Key** field on
+> the extension tab.
 
 # Usage
 [Install](#installation) extension. Browse WordPress sites through Burp proxy. Vulnerable plugins and themes will appear on the issue list.
@@ -31,7 +41,7 @@ If you have Burp Pro, issues will also appear inside *Scanner* tab. Interesting 
 # Installation
 
 WordPress Scanner is available inside [BApp Store](https://portswigger.net/bappstore).
-  1. Inside Burp go to **Extender->BApp Store**
+  1. Inside Burp go to **Extensions->BApp Store**
   2. Choose WordPress Scanner
 
   ![WordPress Scanner](images/bapp_store_1.png)
@@ -43,12 +53,12 @@ WordPress Scanner is available inside [BApp Store](https://portswigger.net/bapps
 You can also install Burp WP manually:
 
 1. Download [Jython](http://www.jython.org/downloads.html) standalone JAR, for example version [2.7](http://search.maven.org/remotecontent?filepath=org/python/jython-standalone/2.7.0/jython-standalone-2.7.0.jar)
-2. Go to **Extender->Options**. Set path inside `Location of Jython standalone JAR file`
+2. Go to **Extensions->Extensions settings**. Set path inside `Location of Jython standalone JAR file`
 
 ![Install Jython](images/install_jython.png)
 
-3. Download [newest Burp WP](https://raw.githubusercontent.com/kacperszurek/burp_wp/master/burp_wp.py)
-4. Go to **Extender->Extensions**. Click **Add**. Set `Extension type` to `Python`. Set path inside `Extension file`.
+3. Download the [newest Burp WP](https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py)
+4. Go to **Extensions->Installed**. Click **Add**. Set `Extension type` to `Python`. Set path inside `Extension file`.
 
 ![Install Burp WP](images/install_burp_wp.png)
 
@@ -93,9 +103,14 @@ There are 3 types:
 
 1. Update button
 
-  List of vulnerable plugins and themes is downloaded from [WPscan](https://wpscan.org/). Before downloading, `sha512` of files is being checked to see if there is a new version available.
+  Downloads the extension database: the `admin-ajax.php` action map and the plugin/theme
+  enumeration wordlists used by the Intruder generators. Files are served from this fork
+  and verified with `sha512` before use, so an update only re-downloads what changed.
 
-  This button also checks if new [Burp WP version exist](https://raw.githubusercontent.com/kacperszurek/burp_wp/master/version.sig) and allows simple auto update mechanism.
+  Vulnerability data itself is **not** bundled — it is fetched on demand per plugin/theme
+  from the [WPScan Vulnerability Database API v3](https://wpscan.com/api/) using your API token.
+
+  This button also checks whether a new [Burp WP version exists](https://raw.githubusercontent.com/f8al/wordpress-scanner/master/version.sig) and offers a simple auto-update mechanism.
 
 2. Use readme.txt for detecting plugins version
 
@@ -140,13 +155,13 @@ There are 3 types:
 
   This works just fine but in some cases you may want to parse full response body. Use with caution as this might be slow.
 
-4. Print all plugin vulnerabilities regarding detected version
+4. Report all known vulnerabilities, even those already fixed in the detected version
 
-  By default issue is only added when vulnerable plugin version is detected `plugin_version < fixed_version`.
+  By default an issue is only added when a vulnerable plugin version is detected (`plugin_version < fixed_version`).
 
-  If you want to print all known vulnerabilities for detected plugin regarding its version - use this option.
+  If you want to report every known vulnerability for a detected plugin regardless of the installed version - use this option.
 
-5. Print info about discovered plugins even if they don't have known vulnerabilities
+5. Report discovered plugins even if they have no known vulnerabilities
 
   Normally plugins/themes which are not vulnerable are ignored.
 
@@ -162,7 +177,7 @@ There are 3 types:
 
   For development purpose.
 
-  You can see output inside: **Extender->Extensions->Burp WP->Output tab**
+  You can see output inside: **Extensions->Installed->Burp WP->Output tab**
 
   ![Debug mode](images/debug_mode.png)
 
@@ -188,11 +203,16 @@ There are 3 types:
 
   Restore extension state to factory defaults.
 
-13. Discover plugins using wp-ajax.php
+13. Discover plugins using admin-ajax.php
 	See [Detect plugins using wp-ajax.php](#detect-plugins-using-wp-ajaxphp).
 
+14. API Key
+
+  Your [WPScan Vulnerability Database API](https://wpscan.com/api/) token. Required for
+  vulnerability lookups. Click **Request API Key** to open the WPScan signup page.
+
 # Offline database
-  All vulnerabilities are provided by [WPscan](https://wpscan.org/) - see [Vulnerability Database](https://wpvulndb.com).
+  All vulnerabilities are provided by [WPScan](https://wpscan.org/) - see the [Vulnerability Database API](https://wpscan.com/api/).
 
   Burp WP supports offline mode.
 
@@ -203,28 +223,30 @@ There are 3 types:
   If it's valid Burp WP database it will be imported automatically.
 
 # Intruder payload generator
-  Because proxy requests and responses are used it's not possible to discover all plugins and themes installed on a specific website.
+  Because only proxied requests and responses are inspected, passive scanning can't discover every plugin and theme installed on a site.
 
-  You can try to get more information manually using intruder payload generator.
+  You can enumerate them actively with the Intruder payload generators. Each generator sprays `/{wp-content}/{plugins|themes}/<slug>/` paths from a bundled wordlist; responses that don't 404 reveal installed plugins/themes, which the scanner then looks up against the WPScan API.
 
-  Right click on URL inside **Proxy->HTTP history** and choose **Send to Burp WP Intruder**. ![Send to intruder](images/intruder_send.png)
+  The wordlists ship with the extension database (`data/plugins.json`, `data/themes.json`) and are refreshed by the **Update** button. They are generated from the public [WordPress.org plugin/theme API](https://api.wordpress.org/) (popularity-ordered) with `tools/generate_wordlists.py` — currently **~50,000 plugin** and **~8,000 theme** slugs. The **Themes** / **Plugins** counters on the extension tab show how many are loaded.
 
-  This will replace request method to GET, remove all parameters and set payload position marker.
+  Right click a URL inside **Proxy->HTTP history** and choose **Send to Burp WP Intruder**. ![Send to intruder](images/intruder_send.png)
 
-  Now go to **Intruder->Tab X->Positions**. Correct URL so it points to WordPress homepage.
+  This replaces the request method with GET, removes all parameters, and sets the payload position marker.
+
+  Now go to **Intruder->Tab X->Positions**. Correct the URL so it points to the WordPress homepage.
 
   ![Intruder positions](images/intruder_position.png)
 
-  Inside **Payloads** tab uncheck **Payload encoding** so `/` won't be converted to `%2f`.
+  Inside the **Payloads** tab uncheck **Payload encoding** so `/` isn't converted to `%2f`.
 
-  Then set **Payload type** to **Extension generated**. Now click **Select generator**:
+  Then set **Payload type** to **Extension generated** and click **Select generator**:
 
   ![Intruder choose payload](images/intruder_choose_payload.png)
 
   There are 3 generators:
   1. WordPress Plugins
   2. WordPress Themes
-  3. WordPress Plugins and themes
+  3. WordPress Plugins and Themes
 
 
   ![Intruder attack](images/intruder_attack.png)
@@ -234,7 +256,7 @@ There are 3 types:
 
   It discovers plugins based on calls to `wp-admin/admin-ajax.php` endpoint.
 
-  Custom [action database](https://github.com/kacperszurek/burp_wp/blob/master/data/admin_ajax.json) is used for this.
+  Custom [action database](https://github.com/f8al/wordpress-scanner/blob/master/data/admin_ajax.json) is used for this.
 
   Basically when plugin send request to `/admin-ajax.php?action=akismet_recheck_queue` Burp WP makes reverse lookup in action database.
 
@@ -244,6 +266,9 @@ There are 3 types:
   MIT License
 
   Copyright (c) 2018 Kacper Szurek
+
+  Modernized 2026 by SecurityShrimp (WPScan API v3, current Burp / Montoya, restored
+  Intruder wordlists).
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -267,6 +292,12 @@ There are 3 types:
 
 # Changelog
 
+* 1.0 - First stable release of the modernized fork; documentation refresh.
+* 0.9 - Settings UI wording fixes; attribution links repointed to the fork / SecurityShrimp.
+* 0.8 - Restored the Intruder plugin & theme enumeration wordlists, now sourced from the WordPress.org API (~50k plugins / ~8k themes); added a UTF-8 source encoding declaration so Jython loads the extension.
+* 0.7 - Fixed HTTP requests on current Burp (the legacy Extender API now shims the Montoya API): database updates and vulnerability lookups work again.
+* 0.6 - Repointed auto-update and database downloads to the `f8al/wordpress-scanner` fork.
+* 0.3-0.5 - Modernized for the WPScan Vulnerability Database API v3 (per-plugin/theme lookups; a free WPScan API token is now required).
 * 0.2 - Add discovery plugins using `wp-ajax.php?action`
 * 0.1.1 - Updates are downloaded through Burp proxy, fix clear list issues button, implement doPassiveScan function
 * 0.1 - Beta version

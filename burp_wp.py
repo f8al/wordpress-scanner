@@ -76,7 +76,7 @@ from javax.swing.event import DocumentListener
 from javax.swing.table import AbstractTableModel
 from org.python.core.util import StringUtil
 
-BURP_WP_VERSION = '0.9'
+BURP_WP_VERSION = '1.0'
 INTERESTING_CODES = [200, 401, 403, 301]
 DB_NAME = "burp_wp_database.db"
 

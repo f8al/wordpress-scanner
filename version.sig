@@ -1,2 +1,2 @@
-{"version_number": "0.9", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "80e6bdfb7c99292f4564c4dcab8bb9b546922a954e446e647c26df2baf800312", "changelog": "0.9: UI wording cleanup; repoint attribution links to the f8al/wordpress-scanner fork and SecurityShrimp"}
-MDsCHGxxH2rXE0J2PVoFNDrvXIYxKV4oA+aB/xnuIsoCG2fBt0hdSXFP4K3kJlO54ds78lVlYgnVmg4OOg==
+{"version_number": "1.0", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "c264ebca38cfc0771e97db8a37d354547287e3d4879a177d9b39fe0b58100c30", "changelog": "1.0: First stable release of the modernized fork — WPScan API v3, current Burp, restored Intruder wordlists"}
+MDwCHBO90anj6D44+mcp88x49rSOmOWRtv1LwXoxsKUCHBvbyIDvEqAPrkN7Vi87Prn1uAHT3k/VM7R6rFw=

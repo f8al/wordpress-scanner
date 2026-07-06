@@ -1,2 +1,2 @@
-{"version_number": "0.6", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "8923172aef02f7a0f95db413f89b5fd261d56df8752eb3938cadefd463e05c68", "changelog": "0.6: Modernized for WPScan Vulnerability Database API v3"}
-MD4CHQCdasJHcevAEAAwyfaVdORdbcjHZIWWv17MGa/BAh0AvpUIwXDHCpaO1y2K3yx5LB5dvajeCZmh6y+2Zg==
+{"version_number": "0.7", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "499cbf9964eeec5a83ef005f374d0a5ac6acb120a1129ce9fc230b9f1551a5c0", "changelog": "0.7: Fix HTTP requests on current Burp (Montoya-backed legacy API) — switch makeHttpRequest calls to the IHttpService overload so database updates and vuln lookups work again"}
+MD4CHQDGi3734x5ocz7B4uyX8+DvcdsQO7Cb0lZExRElAh0Alua9kXjvc7x7BedUMhud2EbdTT7ELt8hguGiaw==

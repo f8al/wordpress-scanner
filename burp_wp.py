@@ -76,7 +76,7 @@ from javax.swing.event import DocumentListener
 from javax.swing.table import AbstractTableModel
 from org.python.core.util import StringUtil
 
-BURP_WP_VERSION = '0.6'
+BURP_WP_VERSION = '0.7'
 INTERESTING_CODES = [200, 401, 403, 301]
 DB_NAME = "burp_wp_database.db"
 
@@ -697,7 +697,20 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         try:
             java_url = URL(original_url)
             request = self.helpers.buildHttpRequest(java_url)
-            response = self.callbacks.makeHttpRequest(java_url.getHost(), 443, True, request)           
+            # Use the IHttpService overload of makeHttpRequest. The deprecated
+            # makeHttpRequest(host, port, useHttps, request) overload returns null
+            # on current Burp (Montoya-backed), which then makes analyzeResponse
+            # throw a NullPointerException.
+            use_https = java_url.getProtocol() == "https"
+            port = java_url.getPort()
+            if port == -1:
+                port = 443 if use_https else 80
+            http_service = self.helpers.buildHttpService(java_url.getHost(), port, use_https)
+            request_response = self.callbacks.makeHttpRequest(http_service, request)
+            response = request_response.getResponse() if request_response else None
+            if response is None:
+                self.print_debug("[-] _make_http_request_wrapper no response for {}".format(original_url))
+                return None
             response_info = self.helpers.analyzeResponse(response)
             if response_info.getStatusCode() in INTERESTING_CODES:
                 return self.helpers.bytesToString(response)[response_info.getBodyOffset():].encode("latin1")
@@ -1093,7 +1106,15 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             # produced a malformed GET-with-body that Cloudflare (now in front of
             # wpscan.com) can reject.
             message = self.helpers.buildHttpMessage(headers, None)
-            response = self.callbacks.makeHttpRequest(java_url.getHost(), 443, True, message)
+            # Use the IHttpService overload; the deprecated
+            # makeHttpRequest(host, port, useHttps, request) overload returns null
+            # on current Burp and breaks analyzeResponse with a NullPointerException.
+            http_service = self.helpers.buildHttpService(java_url.getHost(), 443, True)
+            request_response = self.callbacks.makeHttpRequest(http_service, message)
+            response = request_response.getResponse() if request_response else None
+            if response is None:
+                self.print_debug("[-] api_request no response from Vulnerability Database API")
+                return
             response_info = self.helpers.analyzeResponse(response)
             response_value = self.helpers.bytesToString(response)[response_info.getBodyOffset():].encode("latin1")
 

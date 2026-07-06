@@ -76,7 +76,7 @@ from javax.swing.event import DocumentListener
 from javax.swing.table import AbstractTableModel
 from org.python.core.util import StringUtil
 
-BURP_WP_VERSION = '0.8'
+BURP_WP_VERSION = '0.9'
 INTERESTING_CODES = [200, 401, 403, 301]
 DB_NAME = "burp_wp_database.db"
 
@@ -265,34 +265,34 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
         panel_upper.add(panel_update)
 
-        checkbox_active_scan = JCheckBox("Use readme.txt for detecting plugins version. This option sends additional request to website",
+        checkbox_active_scan = JCheckBox("Use readme.txt to detect plugin versions (sends an extra request to the site)",
                                          self.config.get('active_scan', False))
         checkbox_active_scan.addItemListener(CheckboxListener(self, "active_scan"))
         panel_upper.add(checkbox_active_scan)
 
-        checkbox_full_body = JCheckBox("Scan full response body (normally we check only URL)",
+        checkbox_full_body = JCheckBox("Scan the full response body (normally only the URL is checked)",
                                        self.config.get('full_body', False))
         checkbox_full_body.addItemListener(CheckboxListener(self, "full_body"))
         panel_upper.add(checkbox_full_body)
 
-        checkbox_all_vulns = JCheckBox("Print all plugin vulnerabilities regarding detected version",
+        checkbox_all_vulns = JCheckBox("Report all known vulnerabilities, even those already fixed in the detected version",
                                        self.config.get('all_vulns', False))
         checkbox_all_vulns.addItemListener(CheckboxListener(self, "all_vulns"))
         panel_upper.add(checkbox_all_vulns)
 
         checkbox_print_info = JCheckBox(
-            "Print info about discovered plugins even if they don't have known vulnerabilities",
+            "Report discovered plugins even if they have no known vulnerabilities",
             self.config.get('print_info', False))
         checkbox_print_info.addItemListener(CheckboxListener(self, "print_info"))
         panel_upper.add(checkbox_print_info)
 
         checkbox_admin_ajax = JCheckBox(
-            "Discover plugins using wp-ajax.php?action= technique",
+            "Discover plugins using the admin-ajax.php?action= technique",
             self.config.get('admin_ajax', True))
         checkbox_admin_ajax.addItemListener(CheckboxListener(self, "admin_ajax"))
         panel_upper.add(checkbox_admin_ajax)
 
-        checkbox_auto_update = JCheckBox("Enable auto update", self.config.get('auto_update', True))
+        checkbox_auto_update = JCheckBox("Enable auto-update", self.config.get('auto_update', True))
         checkbox_auto_update.addItemListener(CheckboxListener(self, "auto_update"))
         panel_upper.add(checkbox_auto_update)
 
@@ -304,7 +304,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         panel_what_detect.setLayout(BoxLayout(panel_what_detect, BoxLayout.X_AXIS))
         panel_what_detect.setAlignmentX(Component.LEFT_ALIGNMENT)
 
-        label_what_detect = JLabel("What detect: ")
+        label_what_detect = JLabel("What to detect: ")
         label_what_detect.setAlignmentX(Component.LEFT_ALIGNMENT)
         panel_what_detect.add(label_what_detect)
 
@@ -317,7 +317,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         self.combobox_scan_type.setAlignmentX(Component.LEFT_ALIGNMENT)
         panel_what_detect.add(self.combobox_scan_type)
 
-        label_wp_content = JLabel("Custom wp-content:")
+        label_wp_content = JLabel("Custom wp-content path:")
         label_wp_content.setAlignmentX(Component.LEFT_ALIGNMENT)
         panel_what_detect.add(label_wp_content)
 
@@ -364,7 +364,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         self.api_key.getDocument().addDocumentListener(TextfieldListener(self, 'api_key'))
         panel_api.add(self.api_key)
 
-        label_api_key = JLabel("<html>&nbsp; <a href='#'>Request API Key</a></html>")
+        label_api_key = JLabel("  Request API Key")
         label_api_key.setCursor(Cursor(Cursor.HAND_CURSOR))
         label_api_key.addMouseListener(CopyrightMouseAdapter("https://wpscan.com/api/"))
         label_api_key.setAlignmentX(Component.LEFT_ALIGNMENT)
@@ -395,22 +395,22 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         panel_copyright.setLayout(BoxLayout(panel_copyright, BoxLayout.X_AXIS))
         panel_copyright.setAlignmentX(Component.LEFT_ALIGNMENT)
 
-        label_copyright1 = JLabel("<html><a href='#/'>Burp WP {}</a></html>".format(BURP_WP_VERSION))
+        label_copyright1 = JLabel("Burp WP {}".format(BURP_WP_VERSION))
         label_copyright1.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright1.setCursor(Cursor(Cursor.HAND_CURSOR))
-        label_copyright1.addMouseListener(CopyrightMouseAdapter("https://github.com/kacperszurek/burp_wp"))
+        label_copyright1.addMouseListener(CopyrightMouseAdapter("https://github.com/f8al/wordpress-scanner"))
         label_copyright1.setMaximumSize(label_copyright1.getPreferredSize())
         panel_copyright.add(label_copyright1)
 
-        label_copyright2 = JLabel("<html>&nbsp;by <a href='#'>Kacper Szurek</a>.</html>")
+        label_copyright2 = JLabel("   by SecurityShrimp")
         label_copyright2.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright2.setCursor(Cursor(Cursor.HAND_CURSOR))
-        label_copyright2.addMouseListener(CopyrightMouseAdapter("https://security.szurek.pl/"))
+        label_copyright2.addMouseListener(CopyrightMouseAdapter("https://securityshrimp.com"))
         label_copyright2.setMaximumSize(label_copyright2.getPreferredSize())
         panel_copyright.add(label_copyright2)
 
         label_copyright3 = JLabel(
-            "<html>&nbsp;Vulnerabilities database by <a href='#/'>WPScan</a></html>")
+            "   Vulnerabilities database by WPScan")
         label_copyright3.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright3.setCursor(Cursor(Cursor.HAND_CURSOR))
         label_copyright3.addMouseListener(CopyrightMouseAdapter("https://wpscan.org/"))

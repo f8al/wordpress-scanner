@@ -1,2 +1,2 @@
-{"version_number": "0.8", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "02caddceb2aaefffe22d84ad367a70e352513c51bfed8779d2f50479f1d9417e", "changelog": "0.8: Add PEP 263 UTF-8 encoding declaration so Jython loads the extension; restore Intruder plugin/theme enumeration wordlists"}
-MD0CHQCZBUdJoZqq6eCl2WTWSYnchlKgoQOR3kPekUXqAhwQth1eGBBhHKXzUt2sf4ZVAgPRgtsg4ksyXbuL
+{"version_number": "0.9", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "80e6bdfb7c99292f4564c4dcab8bb9b546922a954e446e647c26df2baf800312", "changelog": "0.9: UI wording cleanup; repoint attribution links to the f8al/wordpress-scanner fork and SecurityShrimp"}
+MDsCHGxxH2rXE0J2PVoFNDrvXIYxKV4oA+aB/xnuIsoCG2fBt0hdSXFP4K3kJlO54ds78lVlYgnVmg4OOg==

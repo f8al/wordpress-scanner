@@ -1,2 +1,17 @@
-Find known vulnerabilities in WordPress plugins and themes using WPScan database.
+<p>WordPress Scanner (Burp WP) passively finds known vulnerabilities in WordPress plugins and themes while you browse a target through Burp Suite &mdash; think of it as a <a href="https://wpscan.com/">WPScan</a>-style check built into your proxy.</p>
 
+<p>As you browse a WordPress site through Burp, the extension fingerprints the plugins and themes it sees, determines their versions, and matches them against the WPScan Vulnerability Database. Anything vulnerable is raised as a Burp issue &mdash; in the extension's own tab, and (with Burp Professional) in the Scanner issues list.</p>
+
+<b>Features</b>
+<ul>
+  <li>Passive detection &mdash; no active requests to the target are required; it works from the traffic already flowing through the proxy.</li>
+  <li>Reliable version detection using each plugin's <code>readme.txt</code> (Stable tag / Changelog), not just fragile <code>?ver=</code> query strings.</li>
+  <li>Optional detection of plugins from <code>wp-admin/admin-ajax.php</code> action calls via a reverse-lookup action database.</li>
+  <li>Intruder payload generators for WordPress plugins and themes, to actively enumerate what passive browsing misses.</li>
+  <li>Configurable scope: detect plugins, themes, or both; scan URLs only or full response bodies; and support for a custom <code>wp-content</code> path.</li>
+  <li>Option to report every known vulnerability for a detected plugin, or to list all discovered plugins even when no vulnerability is known.</li>
+  <li>Local vulnerability database with offline mode &mdash; copy the database file to an air-gapped Burp instance and import it.</li>
+  <li>Automatic once-per-day database updates, with integrity-checked downloads.</li>
+</ul>
+
+<p>The vulnerability data is provided by the <a href="https://wpscan.com/">WPScan Vulnerability Database</a> and requires a free WPScan API token, which you enter in the extension's settings. This build has been updated to use the WPScan Vulnerability Database API v3.</p>

@@ -1,2 +1,2 @@
-{"version_number": "0.1", "url": "https://raw.githubusercontent.com/kacperszurek/burp_wp/master/burp_wp.py", "sha256": "13c81cca2016c071792018b7a63ff47baf8dc402ab01f887207d344451e71ec8", "changelog": "Beta 0.1 release"}
-MCwCFHBROHKJw4vgy3UKBVFOz1a+LKd6AhRAW7QmTah85PM1lAWEuRAVICyIAA==
+{"version_number": "0.6", "url": "https://raw.githubusercontent.com/f8al/wordpress-scanner/master/burp_wp.py", "sha256": "8923172aef02f7a0f95db413f89b5fd261d56df8752eb3938cadefd463e05c68", "changelog": "0.6: Modernized for WPScan Vulnerability Database API v3"}
+MD4CHQCdasJHcevAEAAwyfaVdORdbcjHZIWWv17MGa/BAh0AvpUIwXDHCpaO1y2K3yx5LB5dvajeCZmh6y+2Zg==

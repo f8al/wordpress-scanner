@@ -572,15 +572,13 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
     def verify_update_message(self, signature_content):
         try:
-            public_encoded = ('MIIBtzCCASwGByqGSM44BAEwggEfAoGBAP1'
-                              '/U4EddRIpUt9KnC7s5Of2EbdSPO9EAMMeP4C2USZpRV1AIlH7WT2NWPq/xfW6MPbLm1Vs14E7gB00b'
-                              '/JmYLdrmVClpJ+f6AR7ECLCT7up1/63xhv4O1fnxqimFQ8E'
-                              '+4P208UewwI1VBNaFpEy9nXzrith1yrv8iIDGZ3RSAHHAhUAl2BQjxUjC8yykrmCouuEC/BYHPUCgYEA9'
-                              '+GghdabPd7LvKtcNrhXuXmUr7v6OuqC+VdMCz0HgmdRWVeOutRZT'
-                              '+ZxBxCBgLRJFnEj6EwoFhO3zwkyjMim4TwWeotUfI0o4KOuHiuzpnWRbqN/C/ohNWLx'
-                              '+2J6ASQ7zKTxvqhRkImog9/hWuWfBpKLZl6Ae1UlZAFMO'
-                              '/7PSSoDgYQAAoGAN0I2oItGdGxYXfdwEEet9DglWpMr2lKkKLy0hsxeDG7snUtI++YVJaF'
-                              '/0SJBpIdTKt8CBweTo5oBcLC0jApYTofft1ukvcpjr6FzqCyI7LmqXAQedpt8JP8gck3Z4JImHhSX1Cdx0hhRmUl3i3JPXQC6VJk1he6Hhm4MqsuM1Ak=')
+            public_encoded = ('MIIBwDCCATQGByqGSM44BAEwggEnAoGBAPUDPPR+SlMF5ya2h3Cc19XZL2e++7dPH1mFdvp+o+1u'
+                              'RrTeew22eWJOd8cmtDIbBcWBLUQoypvFnuzdV8HbOtGvS1RvrqrRgx+4VAa3s8LLdDbpInL37JXCLhrRK7pe2Y0'
+                              'naKiI3ZAOjiPGCxyVIy/pu1598R4WxrHMLB2bH+EZAh0A1J4JYiFOiBtUOpPOeEbtszzROcYC2DYSRtBB9wKBgQD'
+                              'U+nLFElvczQeI090eV2Y5CsipCjO6NQNezjnBQbi62MGU8b+/B0onq/qUpLx0p6HrsYlPWKfziUQzE3GLP+duWMp'
+                              'bOWQ/oGTf5OSqkhlv+URnIcI1D8BIu96lvEj8/b3z6g6Y0jDtnrzj+DzP/oWC4uuIio7Ze9PQMevj47KtYQOBhQA'
+                              'CgYEAt1eskHwM1VOpEst+jbykF7VAXQFJqaNZicKCk82qgUt+LCM8uU/T7ExirgJdp0lHt6pRvi3bFZy+AXqybo7'
+                              'jjGuZ895WT4g3u7ayJYZ+LKxmyyYC0atglyNEWZXuRijewOGIc19IYofLQ09ANQa8/fb2jotwTVtMnsdCZa8xeHw=')
 
             (message, signature) = signature_content.split("\n")
             signature = StringUtil.toBytes(b64decode(signature))
@@ -605,7 +603,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             self.print_debug("[*] update_burp_wp already running")
             return
         try:
-            version_content = self._make_http_request_wrapper("https://raw.githubusercontent.com/kacperszurek/burp_wp/master/version.sig")
+            version_content = self._make_http_request_wrapper("https://raw.githubusercontent.com/f8al/wordpress-scanner/master/version.sig")
             if version_content and len(version_content) > 2:
                 version_verified = self.verify_update_message(version_content)
                 if version_verified:
@@ -711,7 +709,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             return None
 
     def _update_database(self):
-        dict_files = {'admin_ajax': 'https://raw.githubusercontent.com/kacperszurek/burp_wp/master/data/admin_ajax.json'}
+        dict_files = {'admin_ajax': 'https://raw.githubusercontent.com/f8al/wordpress-scanner/master/data/admin_ajax.json'}
 
         progress_divider = len(dict_files) * 2
         progress_adder = 0

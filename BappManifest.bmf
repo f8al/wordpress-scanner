@@ -2,11 +2,11 @@ Uuid: 77a12b2966844f04bba032de5744cd35
 ExtensionType: 2
 Name: WordPress Scanner
 RepoName: wordpress-scanner
-ScreenVersion: 1.2a
-SerialVersion: 4
+ScreenVersion: 1.3
+SerialVersion: 5
 MinPlatformVersion: 0
 ProOnly: False
-Author: Kacper Szurek
+Author: @f8al
 ShortDescription: Find known vulnerabilities in WordPress plugins and themes using WPScan database.
 EntryPoint: burp_wp.py
 BuildCommand: 

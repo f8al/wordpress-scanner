@@ -6,7 +6,14 @@
 #
 # MIT License
 #
-# Copyright (c) 2018 Kacper Szurek
+# Copyright (c) 2019 Kacper Szurek
+#
+# Modernized 2026 by @f8al: updated for the WPScan Vulnerability Database API v3
+# (wpvulndb.com -> wpscan.com; CVE identifiers are now nested under
+# "references" instead of being a top-level field on each vulnerability).
+# NOTE: Burp Suite runs Python extensions on Jython 2.7, so this file is
+# intentionally kept Python 2 compatible. Do NOT port it to Python 3 syntax
+# or it will fail to load in Burp.
 import collections
 import hashlib
 import json
@@ -69,7 +76,7 @@ from javax.swing.event import DocumentListener
 from javax.swing.table import AbstractTableModel
 from org.python.core.util import StringUtil
 
-BURP_WP_VERSION = '0.2'
+BURP_WP_VERSION = '0.4'
 INTERESTING_CODES = [200, 401, 403, 301]
 DB_NAME = "burp_wp_database.db"
 
@@ -84,13 +91,13 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
     def registerExtenderCallbacks(self, callbacks):
         self.callbacks = callbacks
 
-        self.callbacks.printOutput("WordPress Scanner version {}".format(BURP_WP_VERSION))
+        self.callbacks.printOutput("Burp WP version {}".format(BURP_WP_VERSION))
 
         self.helpers = callbacks.getHelpers()
 
         self.initialize_config()
 
-        self.callbacks.setExtensionName("WordPress Scanner")
+        self.callbacks.setExtensionName("Burp WP")
 
         # createMenuItems
         self.callbacks.registerContextMenuFactory(self)
@@ -113,6 +120,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         self.callbacks.addSuiteTab(self)
 
         self.initialize_database()
+        self.update_infos()
 
     def initialize_config(self):
         temp_config = self.callbacks.loadExtensionSetting("config")
@@ -126,8 +134,8 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             self.print_debug("[+] initialize_config new configuration")
             self.config = {'active_scan': True, 'database_path': os.path.join(os.getcwd(), DB_NAME),
                            'wp_content': 'wp-content', 'full_body': False, 'all_vulns': False, 'scan_type': 1,
-                           'debug': False, 'auto_update': True, 'last_update': 0, 'sha_plugins': '', 'sha_themes': '',
-                           'sha_admin_ajax': '', 'print_info': False, 'admin_ajax': True, 'update_burp_wp': '0'}
+                           'debug': False, 'auto_update': True, 'last_update': 0, 'version': '0.3',
+                           'sha_admin_ajax': '', 'print_info': False, 'admin_ajax': True, 'update_burp_wp': '0', 'api_key': 'PLEASE_REPLACE'}
 
     def initialize_variables(self):
         self.is_burp_pro = True if "Professional" in self.callbacks.getBurpVersion()[0] else False
@@ -140,9 +148,23 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         self.list_issues = ArrayList()
         self.lock_issues = Lock()
         self.lock_update_database = Lock()
+        self.lock_update_burp_wp = Lock()
+        self.api_errors = 0
 
         self.database = {'plugins': collections.OrderedDict(), 'themes': collections.OrderedDict(), 'admin_ajax': {}}
         self.list_plugins_on_website = defaultdict(list)
+
+    def update_infos(self):
+        if self.config.get('sha_plugins', '') != '':
+            self.config.pop('sha_plugins', None)
+            self.config.pop('sha_themes', None)
+            self.button_clear_cache("")
+            self.update_config('api_key', 'PLEASE_REPLACE')
+            self.update_config('version', '0.3')
+            self.update_config('last_update', int(time.time()))
+            JOptionPane.showMessageDialog(self.panel_main, "It looks like you update WordPress Scanner. Since version 0.3 you need to provide valid Vulnerability Database API token. You can find it here: https://wpscan.com/api/")
+        elif self.config.get('api_key', '') == 'PLEASE_REPLACE':
+            JOptionPane.showMessageDialog(self.panel_main, "You need to specify valid Vulnerability Database API token")
 
     def initialize_gui(self):
         class CheckboxListener(ItemListener):
@@ -166,8 +188,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
                 self.extender.update_config(self.name, selected)
 
         class TextfieldListener(DocumentListener):
-            def __init__(self, extender):
+            def __init__(self, extender, name):
                 self.extender = extender
+                self.name = name
 
             def changedUpdate(self, document):
                 self._do(document)
@@ -179,8 +202,12 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
                 self._do(document)
 
             def _do(self, document):
-                wp_content = self.extender.textfield_wp_content.getText().replace("/", "")
-                self.extender.update_config('wp_content', wp_content)
+                if self.name == "wp_content":
+                    value = self.extender.textfield_wp_content.getText().replace("/", "")
+                elif self.name == "api_key":
+                    value = self.extender.api_key.getText().strip()
+
+                self.extender.update_config(self.name, value)
 
         class CopyrightMouseAdapter(MouseAdapter):
             def __init__(self, url):
@@ -284,7 +311,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         panel_what_detect.add(label_wp_content)
 
         self.textfield_wp_content = JTextField(self.config.get('wp_content', 'wp-content'))
-        self.textfield_wp_content.getDocument().addDocumentListener(TextfieldListener(self))
+        self.textfield_wp_content.getDocument().addDocumentListener(TextfieldListener(self, 'wp_content'))
         self.textfield_wp_content.setMaximumSize(Dimension(250, 30))
         self.textfield_wp_content.setAlignmentX(Component.LEFT_ALIGNMENT)
         panel_what_detect.add(self.textfield_wp_content)
@@ -311,6 +338,29 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
         panel_upper.add(panel_choose_file)
 
+        panel_api = JPanel()
+        panel_api.setLayout(BoxLayout(panel_api, BoxLayout.X_AXIS))
+        panel_api.setAlignmentX(Component.LEFT_ALIGNMENT)
+
+        label_api = JLabel("API Key: ")
+        label_api.setAlignmentX(Component.LEFT_ALIGNMENT)
+        panel_api.add(label_api)
+
+        self.api_key = JTextField(self.config.get('api_key', ''))
+        self.api_key.setMinimumSize(Dimension(500, 30))
+        self.api_key.setMaximumSize(Dimension(800, 30))
+        self.api_key.setAlignmentX(Component.LEFT_ALIGNMENT)
+        self.api_key.getDocument().addDocumentListener(TextfieldListener(self, 'api_key'))
+        panel_api.add(self.api_key)
+
+        label_api_key = JLabel("<html>&nbsp; <a href='#'>Request API Key</a></html>")
+        label_api_key.setCursor(Cursor(Cursor.HAND_CURSOR))
+        label_api_key.addMouseListener(CopyrightMouseAdapter("https://wpscan.com/api/"))
+        label_api_key.setAlignmentX(Component.LEFT_ALIGNMENT)
+        panel_api.add(label_api_key)
+
+        panel_upper.add(panel_api)
+
         panel_buttons = JPanel()
         panel_buttons.setLayout(BoxLayout(panel_buttons, BoxLayout.X_AXIS))
         panel_buttons.setAlignmentX(Component.LEFT_ALIGNMENT)
@@ -325,14 +375,16 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
                                           actionPerformed=self.button_reset_to_default_on_click)
         panel_buttons.add(button_reset_to_default)
 
+        clear_cache = JButton("Clear cache",actionPerformed=self.button_clear_cache)
+        panel_buttons.add(clear_cache)
+
         panel_upper.add(panel_buttons)
 
         panel_copyright = JPanel()
         panel_copyright.setLayout(BoxLayout(panel_copyright, BoxLayout.X_AXIS))
         panel_copyright.setAlignmentX(Component.LEFT_ALIGNMENT)
 
-        label_copyright1 = JLabel("<html><a href='#/'>WordPress Scanner {}</a></html>".format(BURP_WP_VERSION))
-        label_copyright1.putClientProperty("html.disable", None)
+        label_copyright1 = JLabel("<html><a href='#/'>Burp WP {}</a></html>".format(BURP_WP_VERSION))
         label_copyright1.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright1.setCursor(Cursor(Cursor.HAND_CURSOR))
         label_copyright1.addMouseListener(CopyrightMouseAdapter("https://github.com/kacperszurek/burp_wp"))
@@ -340,7 +392,6 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         panel_copyright.add(label_copyright1)
 
         label_copyright2 = JLabel("<html>&nbsp;by <a href='#'>Kacper Szurek</a>.</html>")
-        label_copyright2.putClientProperty("html.disable", None)
         label_copyright2.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright2.setCursor(Cursor(Cursor.HAND_CURSOR))
         label_copyright2.addMouseListener(CopyrightMouseAdapter("https://security.szurek.pl/"))
@@ -349,7 +400,6 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
         label_copyright3 = JLabel(
             "<html>&nbsp;Vulnerabilities database by <a href='#/'>WPScan</a></html>")
-        label_copyright3.putClientProperty("html.disable", None)
         label_copyright3.setAlignmentX(Component.LEFT_ALIGNMENT)
         label_copyright3.setCursor(Cursor(Cursor.HAND_CURSOR))
         label_copyright3.addMouseListener(CopyrightMouseAdapter("https://wpscan.org/"))
@@ -420,9 +470,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
     def button_force_update_on_click(self, msg):
         self.print_debug("[+] button_force_update_on_click")
 
-        self.update_config('sha_plugins', '')
-        self.update_config('sha_themes', '')
-        
+        self.update_config('sha_admin_ajax', '')
+        self.update_config('update_burp_wp', '0')
+
         self.button_update_on_click(None)
 
     def button_reset_to_default_on_click(self, msg):
@@ -459,6 +509,12 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
     def button_update_on_click(self, msg):
         threading.Thread(target=self.update_database_wrapper).start()
+        threading.Thread(target=self.update_burp_wp).start()
+
+    def button_clear_cache(self, msg):
+        temp = self.database.get('admin_ajax', {})
+        self.database = {'plugins': collections.OrderedDict(), 'themes': collections.OrderedDict(), 'admin_ajax': temp}
+        self.update_database_file()
 
     def button_choose_file_on_click(self, msg):
         file_chooser = JFileChooser()
@@ -514,6 +570,105 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         except:
             self.print_debug("[-] update_config: {}".format(traceback.format_exc()))
 
+    def verify_update_message(self, signature_content):
+        try:
+            public_encoded = ('MIIBtzCCASwGByqGSM44BAEwggEfAoGBAP1'
+                              '/U4EddRIpUt9KnC7s5Of2EbdSPO9EAMMeP4C2USZpRV1AIlH7WT2NWPq/xfW6MPbLm1Vs14E7gB00b'
+                              '/JmYLdrmVClpJ+f6AR7ECLCT7up1/63xhv4O1fnxqimFQ8E'
+                              '+4P208UewwI1VBNaFpEy9nXzrith1yrv8iIDGZ3RSAHHAhUAl2BQjxUjC8yykrmCouuEC/BYHPUCgYEA9'
+                              '+GghdabPd7LvKtcNrhXuXmUr7v6OuqC+VdMCz0HgmdRWVeOutRZT'
+                              '+ZxBxCBgLRJFnEj6EwoFhO3zwkyjMim4TwWeotUfI0o4KOuHiuzpnWRbqN/C/ohNWLx'
+                              '+2J6ASQ7zKTxvqhRkImog9/hWuWfBpKLZl6Ae1UlZAFMO'
+                              '/7PSSoDgYQAAoGAN0I2oItGdGxYXfdwEEet9DglWpMr2lKkKLy0hsxeDG7snUtI++YVJaF'
+                              '/0SJBpIdTKt8CBweTo5oBcLC0jApYTofft1ukvcpjr6FzqCyI7LmqXAQedpt8JP8gck3Z4JImHhSX1Cdx0hhRmUl3i3JPXQC6VJk1he6Hhm4MqsuM1Ak=')
+
+            (message, signature) = signature_content.split("\n")
+            signature = StringUtil.toBytes(b64decode(signature))
+
+            private_key_spec = X509EncodedKeySpec(StringUtil.toBytes(b64decode(public_encoded)))
+            key_factory = KeyFactory.getInstance("DSA", "SUN")
+            public_key = key_factory.generatePublic(private_key_spec)
+
+            sig = Signature.getInstance("SHA256withDSA")
+            sig.initVerify(public_key)
+            sig.update(message, 0, len(message))
+
+            if sig.verify(signature):
+                return json.loads(message)
+            else:
+                return None
+        except:
+            return None
+
+    def update_burp_wp(self):
+        if not self.lock_update_burp_wp.acquire(False):
+            self.print_debug("[*] update_burp_wp already running")
+            return
+        try:
+            version_content = self._make_http_request_wrapper("https://raw.githubusercontent.com/kacperszurek/burp_wp/master/version.sig")
+            if version_content and len(version_content) > 2:
+                version_verified = self.verify_update_message(version_content)
+                if version_verified:
+                    if LooseVersion(BURP_WP_VERSION) < LooseVersion(
+                            version_verified['version_number']) and LooseVersion(
+                        version_verified['version_number']) > LooseVersion(self.config.get('update_burp_wp', '0')):
+                        new_file = self._make_http_request_wrapper(version_verified['url'])
+                        sha = hashlib.new('sha256')
+                        sha.update(new_file)
+                        if version_verified['sha256'] == sha.hexdigest():
+                            result = JOptionPane.showConfirmDialog(self.panel_main,
+                                                                   "New Burp WP version {} available, update? Changelog: {}".format(
+                                                                       version_verified['version_number'],
+                                                                       version_verified['changelog']), "Burp WP Update",
+                                                                   JOptionPane.YES_NO_OPTION)
+                            if result == JOptionPane.YES_OPTION:
+                                extension_full_path = self.callbacks.getExtensionFilename()
+                                shutil.copy(extension_full_path, extension_full_path + ".bck")
+                                try:
+                                    f = open(extension_full_path, "wb")
+                                    f.write(new_file)
+                                    f.close()
+                                    self.print_debug("[+] update_burp_wp update OK")
+                                    JOptionPane.showMessageDialog(self.panel_main,
+                                                                  "Burp WP updated successfully, please reload extension")
+                                    self.callbacks.unloadExtension()
+                                except:
+                                    self.print_debug("[-] update_burp_wp cannot write new version: {}".format(
+                                        traceback.format_exc()))
+                                    JOptionPane.showMessageDialog(self.panel_main,
+                                                                  "Burp WP update failed, see debug log")
+                            else:
+                                self.update_config('update_burp_wp', version_verified['version_number'])
+                        else:
+                            self.print_debug(
+                                "[-] update_burp_wp sha256 mismatch, is: {} should be: {}".format(sha.hexdigest(),
+                                                                                                  version_verified[
+                                                                                                      'sha256']))
+                    else:
+                        self.print_debug("[*] update_burp_wp no new version")
+                else:
+                    self.print_debug("[-] update_burp_wp cannot verify signature")
+            else:
+                self.print_debug("[-] update_burp_wp cannot get version info")
+        except:
+            self.print_debug("[-] update_burp_wp update error: {}".format(traceback.format_exc()))
+
+        finally:
+            self.lock_update_burp_wp.release()
+
+    def update_database_file(self):
+        self.lock_update_database.acquire()
+
+        try:           
+            with open(self.config.get('database_path'), "wb") as fp:
+                json.dump(self.database, fp)
+            self.update_config('last_update', int(time.time()))
+        except:
+            self.print_debug("[+] update_database_file update error")
+        finally:
+            self.lock_update_database.release()
+            
+
     def update_database_wrapper(self):
         if not self.lock_update_database.acquire(False):
             self.print_debug("[*] update_database update already running")
@@ -556,9 +711,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             return None
 
     def _update_database(self):
-        dict_files = {'plugins': 'https://data.wpscan.org/plugins.json',
-                      'themes': 'https://data.wpscan.org/themes.json',
-                      'admin_ajax': 'https://raw.githubusercontent.com/kacperszurek/burp_wp/master/data/admin_ajax.json'}
+        dict_files = {'admin_ajax': 'https://raw.githubusercontent.com/kacperszurek/burp_wp/master/data/admin_ajax.json'}
 
         progress_divider = len(dict_files) * 2
         progress_adder = 0
@@ -602,43 +755,6 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
                 if _type == 'admin_ajax':
                     temp_database = loaded_json
-                else:
-                    i = 0
-                    progress_adder += int(100 / progress_divider)
-                    json_length = len(loaded_json)
-                    for name in loaded_json:
-                        bugs = []
-                        i += 1
-                        if i % 1000 == 0:
-                            percent = int((i * 100. / json_length) / 4) + progress_adder
-                            self.progressbar_update.setValue(percent)
-                            self.progressbar_update.setStringPainted(True)
-                        # No bugs
-                        if len(loaded_json[name]['vulnerabilities']) == 0:
-                            continue
-
-                        for vulnerability in loaded_json[name]['vulnerabilities']:
-                            bug = {'id': vulnerability['id'], 'title': vulnerability['title'].encode('utf-8'),
-                                   'vuln_type': vulnerability['vuln_type'].encode('utf-8'), 'reference': ''}
-
-                            if 'references' in vulnerability:
-                                if 'url' in vulnerability['references']:
-                                    references = []
-                                    for reference_url in vulnerability['references']['url']:
-                                        references.append(reference_url.encode('utf-8'))
-                                    if len(references) != 0:
-                                        bug['reference'] = references
-                            if 'cve' in vulnerability:
-                                bug['cve'] = vulnerability['cve'].encode('utf-8')
-                            if 'exploitdb' in vulnerability:
-                                bug['exploitdb'] = vulnerability['exploitdb'][0].encode('utf-8')
-                            # Sometimes there is no fixed in or its None
-                            if 'fixed_in' in vulnerability and vulnerability['fixed_in']:
-                                bug['fixed_in'] = vulnerability['fixed_in'].encode('utf-8')
-                            else:
-                                bug['fixed_in'] = '0'
-                            bugs.append(bug)
-                        temp_database[name] = bugs
 
                 progress_adder += int(100 / progress_divider)
                 self.database[_type] = temp_database
@@ -665,11 +781,11 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             issues = []
             if self.config.get('scan_type', 1) == 1:
                 issues += self.check_url_or_body(messageInfo, "plugins")
-                issues += (self.check_url_or_body(messageInfo, "themes") or [])
+                issues += self.check_url_or_body(messageInfo, "themes")
             elif self.config.get('scan_type', 1) == 2:
                 issues += self.check_url_or_body(messageInfo, "plugins")
             elif self.config.get('scan_type', 1) == 3:
-                issues += (self.check_url_or_body(messageInfo, "themes")  or [])
+                issues += self.check_url_or_body(messageInfo, "themes")
 
             if self.config.get('admin_ajax', True):
                 issues += self.check_admin_ajax(messageInfo)
@@ -961,10 +1077,100 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
         return False
 
+    def api_request(self, _type, name):
+        if self.config.get('api_key', '') == 'PLEASE_REPLACE':
+            return
+        self.print_debug("[+] api_request: {}:{}".format(_type, name))
+
+        try:
+            # WPScan relocated the Vulnerability Database API from wpvulndb.com to wpscan.com.
+            original_url = "https://wpscan.com/api/v3/{}/{}".format(_type, name)
+            java_url = URL(original_url)
+            request = self.helpers.buildHttpRequest(java_url)
+            requestInfo = self.helpers.analyzeRequest(request)
+            headers = requestInfo.getHeaders()
+            headers.add("Authorization: Token token={}".format(self.config.get('api_key', '')))
+            # buildHttpMessage's second argument is the request BODY. A GET has none, so
+            # send an empty body. The previous code passed the whole request here, which
+            # produced a malformed GET-with-body that Cloudflare (now in front of
+            # wpscan.com) can reject.
+            message = self.helpers.buildHttpMessage(headers, None)
+            response = self.callbacks.makeHttpRequest(java_url.getHost(), 443, True, message)
+            response_info = self.helpers.analyzeResponse(response)
+            response_value = self.helpers.bytesToString(response)[response_info.getBodyOffset():].encode("latin1")
+
+            if response_info.getStatusCode() == 403:
+                if self.api_errors == 0:
+                    JOptionPane.showMessageDialog(self.panel_main, "You probably reach API count: {}".format(response_value))
+                    self.api_errors += 1
+                    return                
+
+            try:
+                loaded_json = json.loads(response_value)
+
+                if "error" in loaded_json:
+                    if loaded_json['error'] != "Not found":
+                        if self.api_errors == 0:
+                            JOptionPane.showMessageDialog(self.panel_main, "Request to Vulnerability Database API failed: {}".format(loaded_json['error']))
+                        self.api_errors += 1
+                        return
+
+                bugs = []
+                if name in loaded_json and "vulnerabilities" in loaded_json[name]:
+                    for vulnerability in loaded_json[name]['vulnerabilities']:
+                        bug = {'id': vulnerability.get('id', ''),
+                               'title': (vulnerability.get('title') or '').encode('utf-8'),
+                               'vuln_type': (vulnerability.get('vuln_type') or 'Unknown').encode('utf-8'),
+                               'reference': ''}
+
+                        references = vulnerability.get('references') or {}
+
+                        if 'url' in references:
+                            reference_urls = []
+                            for reference_url in references['url']:
+                                reference_urls.append(reference_url.encode('utf-8'))
+                            if len(reference_urls) != 0:
+                                bug['reference'] = reference_urls
+
+                        # API v3 nests CVE identifiers as an array under "references";
+                        # older responses exposed a single top-level "cve" string.
+                        cve = references.get('cve') or vulnerability.get('cve')
+                        if cve:
+                            if isinstance(cve, list):
+                                bug['cve'] = ", ".join([c.encode('utf-8') for c in cve])
+                            else:
+                                bug['cve'] = cve.encode('utf-8')
+
+                        # exploitdb may live under "references" (v3) or top-level (legacy).
+                        exploitdb = references.get('exploitdb') or vulnerability.get('exploitdb')
+                        if exploitdb:
+                            if isinstance(exploitdb, list):
+                                exploitdb = exploitdb[0]
+                            bug['exploitdb'] = exploitdb.encode('utf-8')
+
+                        # Sometimes there is no fixed_in or it is None
+                        if vulnerability.get('fixed_in'):
+                            bug['fixed_in'] = vulnerability['fixed_in'].encode('utf-8')
+                        else:
+                            bug['fixed_in'] = '0'
+                        bugs.append(bug)
+
+                self.database[_type][name] = bugs
+                self.update_database_file()
+                self.update_config('last_update', int(time.time()))
+
+            except:
+                self.print_debug(
+                    "[-] api_request cannot decode json: {}".format(traceback.format_exc()))               
+        
+        except:
+            self.print_debug("[-] api_request failed: {}".format(traceback.format_exc()))
+
+
     def parse_bug_details(self, bug, plugin_name, _type):
-        content = "ID: <a href='https://wpvulndb.com/vulnerabilities/{}'>{}</a><br />Title: {}<br />Type: {}<br />".format(
+        content = "ID: <a href='https://wpscan.com/vulnerability/{}'>{}</a><br />Title: {}<br />Type: {}<br />".format(
             bug['id'], bug['id'], bug['title'], bug['vuln_type'])
-        if 'reference' in bug:
+        if bug.get('reference'):
             content += "References:<br />"
             for reference in bug['reference']:
                 content += "<a href='{}'>{}</a><br />".format(reference, reference)
@@ -989,6 +1195,9 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
             requests = [base_request_response]
 
         url = self.helpers.analyzeRequest(base_request_response).getUrl()
+
+        if not plugin_name in self.database[_type]:
+            self.api_request(_type, plugin_name)
 
         if plugin_name in self.database[_type]:
             self.print_debug(
@@ -1035,7 +1244,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
         return issues
 
     def createMenuItems(self, invocation):
-        return [JMenuItem("Send to WordPress Scanner Intruder",
+        return [JMenuItem("Send to Burp WP Intruder",
                           actionPerformed=lambda x, inv=invocation: self.menu_send_to_intruder_on_click(inv))]
 
     def menu_send_to_intruder_on_click(self, invocation):
@@ -1082,7 +1291,7 @@ class BurpExtender(IBurpExtender, IHttpListener, ITab, IContextMenuFactory, IMes
 
     # implement ITab
     def getTabCaption(self):
-        return "WordPress Scanner"
+        return "Burp WP"
 
     def getUiComponent(self):
         return self.panel_main

@@ -2,6 +2,11 @@
 
 Context notes for AI agents working on this repo. Keep this up to date as we learn more.
 
+## Commit conventions
+
+- **Do NOT add `Co-Authored-By` trailers** (or any other AI/assistant attribution)
+  to commit messages. Plain commit messages only.
+
 ## What this is
 
 A **Jython** Burp Suite extension (`burp_wp.py`) that scans for vulnerable
@@ -12,6 +17,10 @@ of `kacperszurek/burp_wp`, modernized for WPScan API v3 and repointed to the
 - **Language: Python 2 / Jython.** Do NOT introduce Python-3-only syntax. The file
   uses `.iteritems()`, `urlparse`, `print_debug`, etc. There is no `python2` in the
   dev environment, so you can't do a local syntax check — edit carefully.
+- **Keep source ASCII, or mind the encoding.** `burp_wp.py` declares
+  `# -*- coding: utf-8 -*-` on line 1. Without it, Jython 2.7 refuses to load the
+  whole extension the moment any non-ASCII byte appears (PEP 263) — a single em
+  dash in a comment did exactly this. Prefer plain ASCII (`-`, `->`) in comments.
 - Runs inside Burp on the **legacy Extender API** (`IBurpExtender`, `callbacks`,
   `helpers`), which in current Burp is a **shim over the Montoya API**.
 
